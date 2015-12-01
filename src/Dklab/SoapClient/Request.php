@@ -90,6 +90,18 @@ class Request
         $curlOptions[CURLOPT_HTTPHEADER] = array();
         // SOAP protocol encoding is always UTF8 according to RFC.
         $curlOptions[CURLOPT_HTTPHEADER][] = "Content-Type: text/xml; charset=utf-8";
+
+        // Extract CURL SSL options from stream context if exist
+        if (isset($clientOptions['stream_context'])) {
+            $streamOptions = stream_context_get_options($clientOptions['stream_context']);
+            if (isset($streamOptions['ssl']['verify_peer'])) {
+                $curlOptions[CURLOPT_SSL_VERIFYPEER] = $streamOptions['ssl']['verify_peer'];
+            }
+            if (isset($streamOptions['ssl']['verifyhost'])) {
+                $curlOptions[CURLOPT_SSL_VERIFYHOST] = $streamOptions['ssl']['verifyhost'];
+            }
+        }
+
         // adding SoapAction Header
         if (isset($request['action'])) {
             $curlOptions[CURLOPT_HTTPHEADER][] = 'SOAPAction: "' . $request['action'] . '"';

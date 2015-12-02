@@ -13,7 +13,7 @@ class Request
      *
      * @var Curl
      */
-    private static $_curl = null;
+    private static $_curl;
 
     /**
      * True if this request already contain a response.
@@ -27,35 +27,35 @@ class Request
      *
      * @var array
      */
-    private $_request = null;
+    private $_request;
 
     /**
      * Result of the request (if $_isSynchronized is true).
      *
      * @var mixed
      */
-    private $_result = null;
+    private $_result;
 
     /**
      * cURL request handler.
      *
      * @var \stdClass
      */
-    private $_handler = null;
+    private $_handler;
 
     /**
      * SOAP client object which created this request.
      *
      * @var SoapClient
      */
-    private $_client = null;
+    private $_client;
 
     /**
      * Arguments to call __soapCall().
      *
      * @var array
      */
-    private $_callArgs = null;
+    private $_callArgs;
 
     /**
      * URL which is requested.
@@ -122,16 +122,16 @@ class Request
             $curlOptions[CURLOPT_HTTPHEADER][] = "Host: {$clientOptions['host']}";
         }
         // HTTP basic auth.
-        if (isset($clientOptions['login']) && isset($clientOptions['password']) ) {
-            $curlOptions[CURLOPT_USERPWD] = $clientOptions['login'] . ":" . $clientOptions['password'];
+        if (isset($clientOptions['login'], $clientOptions['password']) ) {
+            $curlOptions[CURLOPT_USERPWD] = $clientOptions['login'] . ':' . $clientOptions['password'];
         }
         // Cookies.
         if ($request['cookies']) {
             $pairs = array();
             foreach ($request['cookies'] as $k => $v) {
-                $pairs[] = urlencode($k) . "=" . urlencode($v);
+                $pairs[] = urlencode($k) . '=' . urlencode($v);
             }
-            $curlOptions[CURLOPT_COOKIE] = join("; ", $pairs);
+            $curlOptions[CURLOPT_COOKIE] = implode('; ', $pairs);
         }
         $this->_handler = self::$_curl->addRequest($curlOptions);
     }
@@ -140,6 +140,7 @@ class Request
      * Wait for the request termination and return its result.
      *
      * @return mixed
+     * @throws DebugSoapFault
      */
     public function getResult()
     {
@@ -150,17 +151,17 @@ class Request
         // Wait for a result.
         $response = self::$_curl->getResult($this->_handler);
         try {
-            if ($response['result_timeout'] == 'data') {
+            if ($response['result_timeout'] === 'data') {
                 // Data timeout.
-                throw new \SoapFault("HTTP", "Response is timed out");
+                throw new DebugSoapFault('HTTP', 'Response is timed out');
             }
-            if ($response['result_timeout'] == 'connect') {
+            if ($response['result_timeout'] === 'connect') {
                 // Native SoapClient compatible message.
-                throw new \SoapFault("HTTP", "Could not connect to host");
+                throw new DebugSoapFault('HTTP', 'Could not connect to host');
             }
-            if (!strlen($response['body'])) {
+            if (($response['body']) === '') {
                 // Empty body (case of DNS error etc.).
-                throw new \SoapFault("HTTP", "SOAP response is empty");
+                throw new DebugSoapFault('HTTP', 'SOAP response is empty');
             }
             // Process cookies.
             foreach ($this->_extractCookies($response['headers']) as $k => $v) {
@@ -170,7 +171,7 @@ class Request
             }
             // Run the SOAP handler.
             $this->_result = $this->_client->__soapCallForced($response['body'], $this->_callArgs);
-        } catch (\Exception $e) {
+        } catch (DebugSoapFault $e) {
             // Add more debug parameters to SoapFault.
             $e->location = $this->_request['location'];
             $e->request = $this->_callArgs;
@@ -189,7 +190,7 @@ class Request
      */
     public function waitForConnect()
     {
-        return self::$_curl->waitForConnect($this->_handler);
+        self::$_curl->waitForConnect($this->_handler);
     }
 
     /**
@@ -198,6 +199,8 @@ class Request
      *
      * @param string $key
      * @return mixed
+     *
+     * @throws DebugSoapFault
      */
     public function __get($key)
     {
@@ -213,9 +216,9 @@ class Request
     private function _extractCookies($headers)
     {
         $cookies = array();
-        foreach (preg_split('/\r?\n/s', $headers) as $header) {
+        foreach (preg_split('/\r?\n/', $headers) as $header) {
             @list($headername, $headervalue) = split(':', $header);
-            if (strtolower($headername) == "set-cookie") {
+            if (strtolower($headername) === "set-cookie") {
                 $cookie = $this->_parseCookieValue(trim($headervalue));
                 $cookies[$cookie['name']] = $cookie['value'];
             }
@@ -250,11 +253,11 @@ class Request
             $cookie['value'] = urldecode($cookie['value']);
             for ($i = 1; $i < count($elements); $i++) {
                 list($elName, $elValue) = array_map('trim', explode('=', $elements[$i]));
-                if ('secure' == $elName) {
+                if ('secure' === $elName) {
                     $cookie['secure'] = true;
-                } elseif ('expires' == $elName) {
+                } elseif ('expires' === $elName) {
                     $cookie['expires'] = str_replace('"', '', $elValue);
-                } elseif ('path' == $elName OR 'domain' == $elName) {
+                } elseif ('path' === $elName OR 'domain' === $elName) {
                     $cookie[$elName] = urldecode($elValue);
                 } else {
                     $cookie[$elName] = $elValue;
@@ -273,7 +276,7 @@ class Request
     private function _isCookieValid($cookie)
     {
         // TODO
-        // Now we assume that all cookies are valid no mater on domein,
+        // Now we assume that all cookies are valid no mater on domain,
         // expires, path, secure etc.
         // Note that original SoapClient only checks: path, domain, secure,
         // but NOT expires.

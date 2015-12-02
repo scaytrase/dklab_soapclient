@@ -42,9 +42,9 @@ namespace Dklab\SoapClient;
  */
 class SoapClient extends \SoapClient
 {
-    private $_recordedRequest = null;
+    private $_recordedRequest;
     private $_hasForcedResponse = false;
-    private $_forcedResponse = null;
+    private $_forcedResponse;
     private $_clientOptions = array();
     private $_cookies = array();
 
@@ -52,10 +52,13 @@ class SoapClient extends \SoapClient
      * Create a new object.
      *
      * @see SoapClient
+     *
+     * @param mixed $wsdl
+     * @param array $options
      */
-    public function __construct($wsdl, $options = array())
+    public function __construct($wsdl,array $options = array())
     {
-        $this->_clientOptions = is_array($options)? array() + $options : array();
+        $this->_clientOptions = $options;
         parent::__construct($wsdl, $options);
     }
 
@@ -63,6 +66,15 @@ class SoapClient extends \SoapClient
      * Perform a raw SOAP request.
      *
      * @see SoapClient::__doRequest
+     *
+     * @param string $request
+     * @param string $location
+     * @param string $action
+     * @param int    $version
+     * @param int    $one_way
+     *
+     * @return null|string
+     * @throws DelayedException
      */
     public function __doRequest($request, $location, $action, $version, $one_way = 0)
     {
@@ -70,15 +82,14 @@ class SoapClient extends \SoapClient
             // We forced a response, so return it.
             return $this->_forcedResponse;
         }
-        // Record the request for later async sending.
-        // Note the "" appended to the beginning of the string: this creates
-        // string copies to work-around PHP's SoapClient bug with refs counting.
+
         $this->_recordedRequest = array(
-            'request'  => "" . $request,
-            'location' => "" . $location,
-            'action'   => "" . $action,
+            'request'  => (string) $request,
+            'location' => (string) $location,
+            'action'   => (string) $action,
             'cookies'  => $this->_cookies,
         );
+
         throw new DelayedException();
     }
 
@@ -86,6 +97,12 @@ class SoapClient extends \SoapClient
      * Perform a SOAP method call.
      *
      * @see SoapClient::__call
+     *
+     * @param string $functionName
+     * @param string $arguments
+     *
+     * @return Request|mixed
+     * @throws DebugSoapFault
      */
     public function __call($functionName, $arguments)
     {
@@ -101,8 +118,17 @@ class SoapClient extends \SoapClient
      *     the Request object which may be synchronized by getResult() call later.
      *
      * @see SoapClient::__soapCall
+     *
+     * @param string $functionName
+     * @param array  $arguments
+     * @param array  $options
+     * @param null   $inputHeaders
+     * @param array  $outputHeaders
+     *
+     * @return Request|mixed
+     * @throws DebugSoapFault
      */
-    public function __soapCall($functionName, $arguments, $options = array(), $inputHeaders = null, &$outputHeaders = null)
+    public function __soapCall($functionName, $arguments, $options = array(), $inputHeaders = null,array &$outputHeaders = null)
     {
         $isAsync = false;
         if (!empty($options['async'])) {
@@ -123,7 +149,7 @@ class SoapClient extends \SoapClient
             // In async mode - return the request.
             return $request;
         } else {
-            // In syncronous mode (default) - wait for a result.
+            // In synchronous mode (default) - wait for a result.
             return $request->getResult();
         }
     }
@@ -152,6 +178,8 @@ class SoapClient extends \SoapClient
      * @param string $forcedResponse  XML forced as a SOAP response.
      * @param array $origArgs         Arguments for __soapCall().
      * @return mixed                  SOAP result.
+     *
+     * @throws \Exception
      */
     public function __soapCallForced($forcedResponse, $origArgs)
     {
@@ -177,13 +205,15 @@ class SoapClient extends \SoapClient
      *
      * @param string $key
      * @return self
+     *
+     * @throws \OutOfBoundsException
      */
     public function __get($key)
     {
-        if ($key == "async") {
+        if ($key === "async") {
             return new AsyncCaller($this);
-        } else {
-            throw new \Exception("Attempt to access undefined property " . get_class($this) . "::$key");
         }
+
+        throw new \OutOfBoundsException("Attempt to access undefined property " . get_class($this) . "::$key");
     }
 }

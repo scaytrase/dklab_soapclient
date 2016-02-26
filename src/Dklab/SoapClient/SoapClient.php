@@ -161,7 +161,8 @@ class SoapClient extends \SoapClient
             // Unfortunately, we cannot use call_user_func_array(), because
             // it does not support "parent::" construction. And we cannot
             // call is "statically" because of E_STRICT.
-            $result = parent::__soapCall($origArgs[0], $origArgs[1], isset($origArgs[2])? $origArgs[2] : array(), @$origArgs[3], $origArgs[4]);
+            if (!isset($origArgs[3])) $origArgs[3] = null;
+            $result = parent::__soapCall($origArgs[0], $origArgs[1], isset($origArgs[2])? $origArgs[2] : array(), $origArgs[3], $origArgs[4]);
             $this->_forcedResponse = null;
             $this->_hasForcedResponse = false;
             return $result;

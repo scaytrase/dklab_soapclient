@@ -214,7 +214,10 @@ class Request
     {
         $cookies = array();
         foreach (preg_split('/\r?\n/s', $headers) as $header) {
-            @list($headername, $headervalue) = explode(':', $header);
+            if (strpos(':', $header) === false) {
+                continue;
+            }
+            list($headername, $headervalue) = explode(':', $header);
             if (strtolower($headername) === "set-cookie") {
                 $cookie = $this->_parseCookieValue(trim($headervalue));
                 $cookies[$cookie['name']] = $cookie['value'];
